@@ -14,16 +14,321 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      email_reminders: {
+        Row: {
+          email_sent_to: string
+          id: string
+          reminder_type: string
+          sale_id: string
+          sent_at: string
+          vyapari_id: string
+        }
+        Insert: {
+          email_sent_to: string
+          id?: string
+          reminder_type: string
+          sale_id: string
+          sent_at?: string
+          vyapari_id: string
+        }
+        Update: {
+          email_sent_to?: string
+          id?: string
+          reminder_type?: string
+          sale_id?: string
+          sent_at?: string
+          vyapari_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_reminders_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_reminders_vyapari_id_fkey"
+            columns: ["vyapari_id"]
+            isOneToOne: false
+            referencedRelation: "vyapari"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          id: string
+          notes: string | null
+          payment_date: string
+          payment_method: string | null
+          sale_id: string
+          vyapari_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method?: string | null
+          sale_id: string
+          vyapari_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method?: string | null
+          sale_id?: string
+          vyapari_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_vyapari_id_fkey"
+            columns: ["vyapari_id"]
+            isOneToOne: false
+            referencedRelation: "vyapari"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string
+          id: string
+          low_stock_threshold: number | null
+          name: string
+          quantity: number
+          unit: string
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          created_by: string
+          id?: string
+          low_stock_threshold?: number | null
+          name: string
+          quantity?: number
+          unit?: string
+          unit_price: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          low_stock_threshold?: number | null
+          name?: string
+          quantity?: number
+          unit?: string
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sales: {
+        Row: {
+          created_at: string
+          created_by: string
+          due_date: string
+          id: string
+          notes: string | null
+          paid_amount: number
+          payment_status: Database["public"]["Enums"]["payment_status"]
+          product_id: string
+          quantity: number
+          rate: number
+          remaining_amount: number
+          sale_date: string
+          total_amount: number
+          vyapari_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          due_date: string
+          id?: string
+          notes?: string | null
+          paid_amount?: number
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          product_id: string
+          quantity: number
+          rate: number
+          remaining_amount: number
+          sale_date?: string
+          total_amount: number
+          vyapari_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          due_date?: string
+          id?: string
+          notes?: string | null
+          paid_amount?: number
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          product_id?: string
+          quantity?: number
+          rate?: number
+          remaining_amount?: number
+          sale_date?: string
+          total_amount?: number
+          vyapari_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_vyapari_id_fkey"
+            columns: ["vyapari_id"]
+            isOneToOne: false
+            referencedRelation: "vyapari"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vyapari: {
+        Row: {
+          address: string | null
+          contact: string
+          created_at: string
+          created_by: string
+          credit_score: number
+          email: string | null
+          id: string
+          last_transaction_date: string | null
+          name: string
+          remaining_balance: number
+          total_paid: number
+          total_purchased: number
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          contact: string
+          created_at?: string
+          created_by: string
+          credit_score?: number
+          email?: string | null
+          id?: string
+          last_transaction_date?: string | null
+          name: string
+          remaining_balance?: number
+          total_paid?: number
+          total_purchased?: number
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          contact?: string
+          created_at?: string
+          created_by?: string
+          credit_score?: number
+          email?: string | null
+          id?: string
+          last_transaction_date?: string | null
+          name?: string
+          remaining_balance?: number
+          total_paid?: number
+          total_purchased?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      calculate_credit_score: { Args: { _vyapari_id: string }; Returns: number }
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "staff"
+      payment_status: "pending" | "partial" | "paid" | "overdue"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +455,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "staff"],
+      payment_status: ["pending", "partial", "paid", "overdue"],
+    },
   },
 } as const
