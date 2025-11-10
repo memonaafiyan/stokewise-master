@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Edit, Trash2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -11,151 +11,223 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Plus, Search, Eye, Pencil, Trash2 } from "lucide-react";
+import { useVyapari } from "@/hooks/useVyapari";
+import { VyapariForm, type VyapariFormData } from "@/components/vyapari/VyapariForm";
+import { CreditScoreBadge } from "@/components/vyapari/CreditScoreBadge";
+import { VyapariDetailsDialog } from "@/components/vyapari/VyapariDetailsDialog";
+import type { Tables } from "@/integrations/supabase/types";
 
-const mockVyapari = [
-  {
-    id: 1,
-    name: "Rajesh Trading Co.",
-    contact: "+91 98765 43210",
-    totalPurchased: 125000,
-    totalPaid: 98000,
-    remaining: 27000,
-    creditScore: 75,
-    lastTransaction: "2024-01-15",
-  },
-  {
-    id: 2,
-    name: "Kumar Stores",
-    contact: "+91 98765 43211",
-    totalPurchased: 85000,
-    totalPaid: 70000,
-    remaining: 15000,
-    creditScore: 85,
-    lastTransaction: "2024-01-18",
-  },
-  {
-    id: 3,
-    name: "Sharma & Sons",
-    contact: "+91 98765 43212",
-    totalPurchased: 200000,
-    totalPaid: 150000,
-    remaining: 50000,
-    creditScore: 45,
-    lastTransaction: "2024-01-10",
-  },
-  {
-    id: 4,
-    name: "Patel Wholesale",
-    contact: "+91 98765 43213",
-    totalPurchased: 95000,
-    totalPaid: 88000,
-    remaining: 7000,
-    creditScore: 92,
-    lastTransaction: "2024-01-20",
-  },
-];
+type Vyapari = Tables<"vyapari">;
 
-const getCreditScoreBadge = (score: number) => {
-  if (score >= 80) {
-    return <Badge className="bg-success/10 text-success border-success/20">Excellent</Badge>;
-  } else if (score >= 50) {
-    return <Badge className="bg-warning/10 text-warning border-warning/20">Average</Badge>;
-  } else {
-    return <Badge variant="destructive">Risky</Badge>;
-  }
-};
+export default function VyapariPage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingVyapari, setEditingVyapari] = useState<Vyapari | null>(null);
+  const [viewingVyapariId, setViewingVyapariId] = useState<string | null>(null);
 
-export default function Vyapari() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const { vyapari, isLoading, createVyapari, updateVyapari, deleteVyapari } = useVyapari();
 
-  const filteredVyapari = mockVyapari.filter((v) =>
-    v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    v.contact.includes(searchTerm)
+  const filteredVyapari = vyapari?.filter(
+    (v) =>
+      v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.contact.includes(searchQuery) ||
+      v.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleCreate = (data: VyapariFormData) => {
+    createVyapari(data);
+    setIsAddOpen(false);
+  };
+
+  const handleUpdate = (data: VyapariFormData) => {
+    if (editingVyapari) {
+      updateVyapari({ id: editingVyapari.id, updates: data });
+      setEditingVyapari(null);
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm("Are you sure you want to delete this vyapari?")) {
+      deleteVyapari(id);
+    }
+  };
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Vyapari Management</h2>
-          <p className="text-muted-foreground mt-1">
-            Manage your customers and track their credits
-          </p>
+          <h1 className="text-3xl font-bold">Vyapari Management</h1>
+          <p className="text-muted-foreground">Manage customers and track credit scores</p>
         </div>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
+        <Button onClick={() => setIsAddOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
           Add Vyapari
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search vyapari..."
-                className="pl-10"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+      {/* Search */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, contact, or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Vyapari
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{vyapari?.length || 0}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Outstanding
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+              ₹
+              {vyapari
+                ?.reduce((sum, v) => sum + v.remaining_balance, 0)
+                .toLocaleString() || 0}
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Total Purchased</TableHead>
-                <TableHead>Total Paid</TableHead>
-                <TableHead>Remaining</TableHead>
-                <TableHead>Credit Score</TableHead>
-                <TableHead>Last Transaction</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredVyapari.map((vyapari) => (
-                <TableRow key={vyapari.id}>
-                  <TableCell className="font-medium">{vyapari.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{vyapari.contact}</TableCell>
-                  <TableCell>₹{vyapari.totalPurchased.toLocaleString()}</TableCell>
-                  <TableCell className="text-success">₹{vyapari.totalPaid.toLocaleString()}</TableCell>
-                  <TableCell className="font-semibold text-destructive">
-                    ₹{vyapari.remaining.toLocaleString()}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{vyapari.creditScore}</span>
-                      {getCreditScoreBadge(vyapari.creditScore)}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(vyapari.lastTransaction).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Collected
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+              ₹
+              {vyapari
+                ?.reduce((sum, v) => sum + v.total_paid, 0)
+                .toLocaleString() || 0}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Table */}
+      <Card>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 text-center text-muted-foreground">Loading...</div>
+          ) : filteredVyapari && filteredVyapari.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Credit Score</TableHead>
+                  <TableHead className="text-right">Outstanding</TableHead>
+                  <TableHead className="text-right">Total Paid</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredVyapari.map((v) => (
+                  <TableRow key={v.id}>
+                    <TableCell className="font-medium">{v.name}</TableCell>
+                    <TableCell>{v.contact}</TableCell>
+                    <TableCell>{v.email || "-"}</TableCell>
+                    <TableCell>
+                      <CreditScoreBadge score={v.credit_score} />
+                    </TableCell>
+                    <TableCell className="text-right text-orange-600 dark:text-orange-400">
+                      ₹{v.remaining_balance.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right text-green-600 dark:text-green-400">
+                      ₹{v.total_paid.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setViewingVyapariId(v.id)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditingVyapari(v)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(v.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="p-8 text-center text-muted-foreground">
+              {searchQuery ? "No vyapari found matching your search" : "No vyapari added yet"}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Add Dialog */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Vyapari</DialogTitle>
+          </DialogHeader>
+          <VyapariForm onSubmit={handleCreate} onCancel={() => setIsAddOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingVyapari} onOpenChange={() => setEditingVyapari(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Vyapari</DialogTitle>
+          </DialogHeader>
+          <VyapariForm
+            vyapari={editingVyapari || undefined}
+            onSubmit={handleUpdate}
+            onCancel={() => setEditingVyapari(null)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Details Dialog */}
+      {viewingVyapariId && (
+        <VyapariDetailsDialog
+          vyapariId={viewingVyapariId}
+          open={!!viewingVyapariId}
+          onOpenChange={(open) => !open && setViewingVyapariId(null)}
+        />
+      )}
     </div>
   );
 }
