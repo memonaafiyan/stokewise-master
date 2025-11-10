@@ -1,10 +1,24 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/useTheme";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 export function TopBar() {
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast.error("Error logging out");
+    } else {
+      toast.success("Logged out successfully");
+      navigate("/");
+    }
+  };
 
   return (
     <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6">
@@ -20,18 +34,29 @@ export function TopBar() {
         </div>
       </div>
       
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={toggleTheme}
-        className="rounded-lg"
-      >
-        {theme === "dark" ? (
-          <Sun className="h-5 w-5" />
-        ) : (
-          <Moon className="h-5 w-5" />
-        )}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          className="rounded-lg"
+        >
+          {theme === "dark" ? (
+            <Sun className="h-5 w-5" />
+          ) : (
+            <Moon className="h-5 w-5" />
+          )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleLogout}
+          className="rounded-lg"
+          aria-label="Logout"
+        >
+          <LogOut className="h-5 w-5" />
+        </Button>
+      </div>
     </header>
   );
 }
