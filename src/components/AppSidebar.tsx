@@ -1,4 +1,4 @@
-import { Home, Package, Users, ShoppingCart, BarChart3, LogOut } from "lucide-react";
+import { Home, Package, Users, ShoppingCart, Wallet, BarChart3, LogOut } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -17,6 +17,7 @@ const menuItems = [
   { title: "Products", url: "/products", icon: Package },
   { title: "Vyapari", url: "/vyapari", icon: Users },
   { title: "Sales", url: "/sales", icon: ShoppingCart },
+  { title: "Payments", url: "/payments", icon: Wallet },
   { title: "Reports", url: "/reports", icon: BarChart3 },
 ];
 
