@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Vyapari from "./pages/Vyapari";
 import Sales from "./pages/Sales";
+import Payments from "./pages/Payments";
 import Reports from "./pages/Reports";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -61,6 +62,7 @@ const App = () => (
             <Route path="/products" element={<Products />} />
             <Route path="/vyapari" element={<Vyapari />} />
             <Route path="/sales" element={<Sales />} />
+            <Route path="/payments" element={<Payments />} />
             <Route path="/reports" element={<Reports />} />
           </Route>
           <Route path="*" element={<NotFound />} />
