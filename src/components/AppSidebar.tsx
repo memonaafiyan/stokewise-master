@@ -1,5 +1,6 @@
-import { Home, Package, Users, ShoppingCart, Wallet, BarChart3, LogOut } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { Home, Package, Users, ShoppingCart, Wallet, BarChart3, Bell, LogOut } from "lucide-react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
   SidebarContent,
@@ -18,11 +19,18 @@ const menuItems = [
   { title: "Vyapari", url: "/vyapari", icon: Users },
   { title: "Sales", url: "/sales", icon: ShoppingCart },
   { title: "Payments", url: "/payments", icon: Wallet },
+  { title: "Reminders", url: "/reminders", icon: Bell },
   { title: "Reports", url: "/reports", icon: BarChart3 },
 ];
 
 export function AppSidebar() {
   const { open } = useSidebar();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -56,7 +64,10 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton className="hover:bg-destructive/10 hover:text-destructive">
+                <SidebarMenuButton 
+                  className="hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                  onClick={handleLogout}
+                >
                   <LogOut className="h-4 w-4" />
                   {open && <span>Logout</span>}
                 </SidebarMenuButton>
