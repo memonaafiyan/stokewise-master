@@ -218,7 +218,7 @@ export default function Sales() {
 
       {/* Add Sale Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Record New Sale</DialogTitle>
           </DialogHeader>
