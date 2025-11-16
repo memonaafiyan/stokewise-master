@@ -1,5 +1,11 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Users, TrendingUp, AlertCircle } from "lucide-react";
+import { Package, Users, TrendingUp, AlertCircle, ShoppingCart, Calendar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
 import {
   AreaChart,
   Area,
@@ -98,6 +104,47 @@ const getStatusBadge = (status: string) => {
 };
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const [recentSales, setRecentSales] = useState<any[]>([]);
+  const [salesStats, setSalesStats] = useState({ total: 0, collected: 0, outstanding: 0, count: 0 });
+
+  useEffect(() => {
+    const fetchRecentSales = async () => {
+      const { data } = await supabase
+        .from("sales")
+        .select(`
+          *,
+          vyapari (name, contact),
+          products (name, unit)
+        `)
+        .order("sale_date", { ascending: false })
+        .limit(5);
+
+      if (data) {
+        setRecentSales(data);
+        const stats = data.reduce((acc, sale) => ({
+          total: acc.total + Number(sale.total_amount),
+          collected: acc.collected + Number(sale.paid_amount),
+          outstanding: acc.outstanding + Number(sale.remaining_amount),
+          count: acc.count + 1
+        }), { total: 0, collected: 0, outstanding: 0, count: 0 });
+        setSalesStats(stats);
+      }
+    };
+
+    fetchRecentSales();
+  }, []);
+
+  const getStatusBadgeVariant = (status: string) => {
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      paid: "default",
+      partial: "secondary",
+      pending: "outline",
+      overdue: "destructive",
+    };
+    return variants[status] || "outline";
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -124,6 +171,69 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      {/* Recent Sales Widget */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" />
+              Recent Sales
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">Latest transactions</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => navigate("/sales")}>
+            View All
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-3 gap-4 pb-4 border-b">
+            <div>
+              <p className="text-xs text-muted-foreground">Total Sales</p>
+              <p className="text-lg font-bold">₹{salesStats.total.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Collected</p>
+              <p className="text-lg font-bold text-success">₹{salesStats.collected.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Outstanding</p>
+              <p className="text-lg font-bold text-destructive">₹{salesStats.outstanding.toFixed(2)}</p>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            {recentSales.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No recent sales</p>
+            ) : (
+              recentSales.map((sale) => (
+                <div key={sale.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{sale.vyapari?.name}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-xs text-muted-foreground truncate">
+                        {sale.products?.name} × {sale.quantity}
+                      </p>
+                      <Calendar className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(sale.sale_date), "dd MMM")}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 ml-2">
+                    <div className="text-right">
+                      <p className="font-bold">₹{Number(sale.total_amount).toFixed(2)}</p>
+                      <Badge variant={getStatusBadgeVariant(sale.payment_status)} className="mt-1 text-xs">
+                        {sale.payment_status}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts Section */}
       <div className="grid gap-4 md:grid-cols-2">

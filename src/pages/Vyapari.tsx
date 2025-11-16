@@ -13,9 +13,11 @@ import {
 } from "@/components/ui/table";
 import { Plus, Search, Eye, Pencil, Trash2 } from "lucide-react";
 import { useVyapari } from "@/hooks/useVyapari";
+import { useSalesOperations } from "@/hooks/useSalesOperations";
 import { VyapariForm, type VyapariFormData } from "@/components/vyapari/VyapariForm";
 import { CreditScoreBadge } from "@/components/vyapari/CreditScoreBadge";
 import { VyapariDetailsDialog } from "@/components/vyapari/VyapariDetailsDialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Vyapari = Tables<"vyapari">;
@@ -25,8 +27,11 @@ export default function VyapariPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingVyapari, setEditingVyapari] = useState<Vyapari | null>(null);
   const [viewingVyapariId, setViewingVyapariId] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingVyapari, setDeletingVyapari] = useState<Vyapari | null>(null);
 
-  const { vyapari, isLoading, createVyapari, updateVyapari, deleteVyapari } = useVyapari();
+  const { vyapari, isLoading, createVyapari, updateVyapari } = useVyapari();
+  const { deleteVyapariWithSales } = useSalesOperations();
 
   const filteredVyapari = vyapari?.filter(
     (v) =>
@@ -47,9 +52,16 @@ export default function VyapariPage() {
     }
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this vyapari?")) {
-      deleteVyapari(id);
+  const handleDelete = (vyapariToDelete: Vyapari) => {
+    setDeletingVyapari(vyapariToDelete);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (deletingVyapari) {
+      await deleteVyapariWithSales.mutateAsync(deletingVyapari.id);
+      setIsDeleteDialogOpen(false);
+      setDeletingVyapari(null);
     }
   };
 
@@ -178,7 +190,7 @@ export default function VyapariPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(v.id)}
+                          onClick={() => handleDelete(v)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

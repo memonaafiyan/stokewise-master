@@ -44,22 +44,23 @@ interface SaleFormProps {
   }) => void;
   onCancel: () => void;
   isLoading?: boolean;
+  initialData?: any;
 }
 
-export function SaleForm({ onSubmit, onCancel, isLoading }: SaleFormProps) {
+export function SaleForm({ onSubmit, onCancel, isLoading, initialData }: SaleFormProps) {
   const { vyapari } = useVyapari();
   const { products } = useProducts();
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleSchema),
     defaultValues: {
-      vyapari_id: "",
-      product_id: "",
-      quantity: 1,
-      rate: 0,
-      paid_amount: 0,
-      due_date: format(new Date(), "yyyy-MM-dd"),
-      notes: "",
+      vyapari_id: initialData?.vyapari_id || "",
+      product_id: initialData?.product_id || "",
+      quantity: initialData?.quantity || 1,
+      rate: initialData?.rate || 0,
+      paid_amount: initialData?.paid_amount || 0,
+      due_date: initialData?.due_date ? format(new Date(initialData.due_date), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+      notes: initialData?.notes || "",
     },
   });
 
