@@ -307,7 +307,7 @@ export default function Payments() {
 
       {/* Record Payment Dialog */}
       <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Record Payment</DialogTitle>
           </DialogHeader>

@@ -5,16 +5,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Calendar, Package, User, IndianRupee } from "lucide-react";
+import { Plus, Search, Calendar, Package, User, IndianRupee, Upload, Pencil, Trash2, FileText } from "lucide-react";
 import { useSales } from "@/hooks/useSales";
+import { useSalesOperations } from "@/hooks/useSalesOperations";
 import { SaleForm } from "@/components/sales/SaleForm";
+import { BulkSalesImport } from "@/components/sales/BulkSalesImport";
+import { InvoiceGenerator } from "@/components/sales/InvoiceGenerator";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 export default function Sales() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const { sales, isLoading, createSale } = useSales();
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+  const { sales, isLoading, createSale, updateSale } = useSales();
+  const { deleteSale } = useSalesOperations();
   const [userId, setUserId] = useState<string>("");
 
   useEffect(() => {
@@ -65,6 +76,39 @@ export default function Sales() {
     setIsAddDialogOpen(false);
   };
 
+  const handleEditSale = async (values: any) => {
+    if (!selectedSale) return;
+    await updateSale.mutateAsync({
+      id: selectedSale.id,
+      updates: values,
+    });
+    setIsEditDialogOpen(false);
+    setSelectedSale(null);
+    toast.success("Sale updated successfully");
+  };
+
+  const handleDeleteSale = async () => {
+    if (!selectedSale) return;
+    await deleteSale.mutateAsync(selectedSale.id);
+    setIsDeleteDialogOpen(false);
+    setSelectedSale(null);
+  };
+
+  const openEditDialog = (sale: any) => {
+    setSelectedSale(sale);
+    setIsEditDialogOpen(true);
+  };
+
+  const openDeleteDialog = (sale: any) => {
+    setSelectedSale(sale);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const openInvoice = (sale: any) => {
+    setSelectedSale(sale);
+    setIsInvoiceOpen(true);
+  };
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       paid: "default",
@@ -88,10 +132,16 @@ export default function Sales() {
             Record sales and manage credit payments
           </p>
         </div>
-        <Button className="gap-2" onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="h-4 w-4" />
-          New Sale
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" className="gap-2" onClick={() => setIsBulkImportOpen(true)}>
+            <Upload className="h-4 w-4" />
+            Bulk Import
+          </Button>
+          <Button className="gap-2" onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New Sale
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -167,6 +217,7 @@ export default function Sales() {
                   <TableHead className="text-right">Udhari</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Due Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -208,6 +259,19 @@ export default function Sales() {
                     </TableCell>
                     <TableCell>{getStatusBadge(sale.payment_status)}</TableCell>
                     <TableCell>{format(new Date(sale.due_date), "dd MMM yyyy")}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => openInvoice(sale)}>
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => openEditDialog(sale)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => openDeleteDialog(sale)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -229,6 +293,62 @@ export default function Sales() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Edit Sale Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Edit Sale</DialogTitle>
+          </DialogHeader>
+          <SaleForm
+            onSubmit={handleEditSale}
+            onCancel={() => setIsEditDialogOpen(false)}
+            isLoading={updateSale.isPending}
+            initialData={selectedSale}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Import Dialog */}
+      <Dialog open={isBulkImportOpen} onOpenChange={setIsBulkImportOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Bulk Import Sales</DialogTitle>
+          </DialogHeader>
+          <BulkSalesImport
+            onSuccess={() => setIsBulkImportOpen(false)}
+            userId={userId}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoice Dialog */}
+      <Dialog open={isInvoiceOpen} onOpenChange={setIsInvoiceOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Invoice</DialogTitle>
+          </DialogHeader>
+          {selectedSale && <InvoiceGenerator sale={selectedSale} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent className="w-[95vw] sm:w-full max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Sale</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this sale? This will restore the product stock and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSale} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
