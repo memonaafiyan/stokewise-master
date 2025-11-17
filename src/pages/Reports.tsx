@@ -23,6 +23,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { toast } from "@/hooks/use-toast";
+import { exportToExcel, formatSalesForExport, formatPaymentsForExport, formatInventoryForExport } from "@/lib/exportUtils";
 
 const COLORS = [
   "hsl(var(--chart-1))",
@@ -145,42 +146,44 @@ export default function Reports() {
   }, []) || [];
 
   const exportReport = (reportType: string) => {
-    let data: any = null;
     let filename = "";
 
     switch (reportType) {
       case "stock":
-        data = inventoryData;
-        filename = `stock-report-${format(new Date(), "yyyy-MM-dd")}.json`;
+        if (inventoryData) {
+          const formattedData = formatInventoryForExport(inventoryData);
+          exportToExcel(formattedData, `stock-report-${format(new Date(), "yyyy-MM-dd")}`);
+        }
         break;
       case "udhari":
-        data = salesData?.filter(s => Number(s.remaining_amount) > 0);
-        filename = `udhari-report-${format(new Date(), "yyyy-MM-dd")}.json`;
+        if (salesData) {
+          const udhariSales = salesData.filter(s => Number(s.remaining_amount) > 0);
+          const formattedData = formatSalesForExport(udhariSales);
+          exportToExcel(formattedData, `udhari-report-${format(new Date(), "yyyy-MM-dd")}`);
+        }
         break;
       case "sales":
-        data = salesData;
-        filename = `sales-report-${format(new Date(), "yyyy-MM-dd")}.json`;
+        if (salesData) {
+          const formattedData = formatSalesForExport(salesData);
+          exportToExcel(formattedData, `sales-report-${format(new Date(), "yyyy-MM-dd")}`);
+        }
+        break;
+      case "payments":
+        if (paymentsData) {
+          const formattedData = formatPaymentsForExport(paymentsData);
+          exportToExcel(formattedData, `payments-report-${format(new Date(), "yyyy-MM-dd")}`);
+        }
         break;
       case "backup":
-        data = {
-          sales: salesData,
-          payments: paymentsData,
-          inventory: inventoryData,
-        };
-        filename = `full-backup-${format(new Date(), "yyyy-MM-dd")}.json`;
+        const allData = [
+          { Sheet: 'Sales', Data: salesData ? formatSalesForExport(salesData) : [] },
+          { Sheet: 'Payments', Data: paymentsData ? formatPaymentsForExport(paymentsData) : [] },
+          { Sheet: 'Inventory', Data: inventoryData ? formatInventoryForExport(inventoryData) : [] },
+        ];
+        exportToExcel(allData[0].Data, `full-backup-${format(new Date(), "yyyy-MM-dd")}`);
         break;
     }
-
-    if (data) {
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(url);
-      toast({ title: "Report downloaded successfully" });
-    }
+    toast({ title: "Report exported to Excel successfully" });
   };
 
   return (

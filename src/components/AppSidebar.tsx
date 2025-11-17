@@ -1,4 +1,4 @@
-import { Home, Package, Users, ShoppingCart, Wallet, BarChart3, Bell, LogOut } from "lucide-react";
+import { Home, Package, Users, ShoppingCart, Wallet, BarChart3, Bell, LogOut, FileText } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -21,6 +21,7 @@ const menuItems = [
   { title: "Payments", url: "/payments", icon: Wallet },
   { title: "Reminders", url: "/reminders", icon: Bell },
   { title: "Reports", url: "/reports", icon: BarChart3 },
+  { title: "Audit Logs", url: "/audit-logs", icon: FileText },
 ];
 
 export function AppSidebar() {
