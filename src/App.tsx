@@ -14,6 +14,7 @@ import Sales from "./pages/Sales";
 import Payments from "./pages/Payments";
 import Reports from "./pages/Reports";
 import Reminders from "./pages/Reminders";
+import AuditLogs from "./pages/AuditLogs";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -66,6 +67,7 @@ const App = () => (
             <Route path="/payments" element={<Payments />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/reminders" element={<Reminders />} />
+            <Route path="/audit-logs" element={<AuditLogs />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
