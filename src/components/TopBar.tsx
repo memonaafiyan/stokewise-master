@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 
 export function TopBar() {
   const { theme, toggleTheme } = useTheme();
@@ -29,12 +30,13 @@ export function TopBar() {
             <span className="text-primary-foreground font-bold text-sm">SM</span>
           </div>
           <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            StokeMaker
+            Stock Maker
           </h1>
         </div>
       </div>
       
       <div className="flex items-center gap-2">
+        <NotificationCenter />
         <Button
           variant="ghost"
           size="icon"

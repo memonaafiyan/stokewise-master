@@ -95,6 +95,30 @@ export type Database = {
           },
         ]
       }
+      exchange_rates: {
+        Row: {
+          base_currency: string
+          id: string
+          rate: number
+          target_currency: string
+          updated_at: string
+        }
+        Insert: {
+          base_currency?: string
+          id?: string
+          rate: number
+          target_currency: string
+          updated_at?: string
+        }
+        Update: {
+          base_currency?: string
+          id?: string
+          rate?: number
+          target_currency?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -148,10 +172,13 @@ export type Database = {
       }
       products: {
         Row: {
+          barcode: string | null
           category: string
           created_at: string
           created_by: string
+          currency: string | null
           id: string
+          imei: string | null
           low_stock_threshold: number | null
           name: string
           quantity: number
@@ -160,10 +187,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          barcode?: string | null
           category: string
           created_at?: string
           created_by: string
+          currency?: string | null
           id?: string
+          imei?: string | null
           low_stock_threshold?: number | null
           name: string
           quantity?: number
@@ -172,10 +202,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          barcode?: string | null
           category?: string
           created_at?: string
           created_by?: string
+          currency?: string | null
           id?: string
+          imei?: string | null
           low_stock_threshold?: number | null
           name?: string
           quantity?: number
@@ -216,6 +249,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          currency: string | null
           due_date: string
           id: string
           notes: string | null
@@ -232,6 +266,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by: string
+          currency?: string | null
           due_date: string
           id?: string
           notes?: string | null
@@ -248,6 +283,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string
+          currency?: string | null
           due_date?: string
           id?: string
           notes?: string | null
