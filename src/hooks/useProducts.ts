@@ -4,6 +4,20 @@ import { toast } from "@/hooks/use-toast";
 
 export interface Product {
   id: string;
+  brand: string;
+  model: string;
+  color: string | null;
+  storage: string | null;
+  country_variant: string;
+  imei: string | null;
+  barcode: string | null;
+  purchase_price: number;
+  selling_price: number;
+  customer_name: string | null;
+  notes: string | null;
+  sold: boolean;
+  sold_date: string | null;
+  currency: string;
   name: string;
   category: string;
   quantity: number;
@@ -16,22 +30,36 @@ export interface Product {
 }
 
 export interface ProductInsert {
-  name: string;
-  category: string;
-  quantity: number;
-  unit: string;
-  unit_price: number;
-  low_stock_threshold?: number;
+  brand: string;
+  model: string;
+  color?: string;
+  storage?: string;
+  country_variant?: string;
+  imei?: string;
+  barcode?: string;
+  purchase_price: number;
+  selling_price: number;
+  customer_name?: string;
+  notes?: string;
+  sold?: boolean;
+  sold_date?: string;
   created_by: string;
 }
 
 export interface ProductUpdate {
-  name?: string;
-  category?: string;
-  quantity?: number;
-  unit?: string;
-  unit_price?: number;
-  low_stock_threshold?: number;
+  brand?: string;
+  model?: string;
+  color?: string;
+  storage?: string;
+  country_variant?: string;
+  imei?: string;
+  barcode?: string;
+  purchase_price?: number;
+  selling_price?: number;
+  customer_name?: string;
+  notes?: string;
+  sold?: boolean;
+  sold_date?: string;
 }
 
 export const useProducts = () => {
@@ -64,8 +92,8 @@ export const useProducts = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast({
-        title: "Success",
-        description: "Product created successfully",
+        title: "Success! ✓",
+        description: "Stock item added successfully",
       });
     },
     onError: (error: Error) => {
@@ -92,8 +120,8 @@ export const useProducts = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast({
-        title: "Success",
-        description: "Product updated successfully",
+        title: "Success! ✓",
+        description: "Stock item updated successfully",
       });
     },
     onError: (error: Error) => {
@@ -117,8 +145,8 @@ export const useProducts = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast({
-        title: "Success",
-        description: "Product deleted successfully",
+        title: "Success! ✓",
+        description: "Stock item deleted successfully",
       });
     },
     onError: (error: Error) => {
