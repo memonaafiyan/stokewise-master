@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Search, Edit, Trash2, Filter, Package, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Edit, Trash2, Filter, Package, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { InvoiceGenerator } from "@/components/invoice/InvoiceGenerator";
 import {
   Table,
   TableBody,
