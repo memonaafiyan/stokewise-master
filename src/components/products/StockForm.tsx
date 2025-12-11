@@ -19,10 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Product } from "@/hooks/useProducts";
-import { useEffect, useMemo } from "react";
+import { Product, useProducts } from "@/hooks/useProducts";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { RotateCcw, Calculator } from "lucide-react";
+import { RotateCcw, Calculator, AlertTriangle, CheckCircle } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
+// IMEI validation: exactly 15 digits
+const imeiRegex = /^\d{15}$/;
 
 // Validation schema with all required fields
 const stockSchema = z.object({
@@ -31,7 +36,10 @@ const stockSchema = z.object({
   color: z.string().optional(),
   storage: z.string().optional(),
   country_variant: z.string().default("IN"),
-  imei: z.string().optional(),
+  imei: z.string().optional().refine((val) => {
+    if (!val || val.length === 0) return true;
+    return imeiRegex.test(val);
+  }, "IMEI must be exactly 15 digits"),
   purchase_price: z.coerce.number().min(0, "Purchase price must be positive"),
   selling_price: z.coerce.number().min(0, "Selling price must be positive"),
   customer_name: z.string().optional(),
@@ -49,14 +57,14 @@ interface StockFormProps {
 
 // Country variants
 const COUNTRY_VARIANTS = [
-  { value: "IN", label: "India" },
-  { value: "Dubai", label: "Dubai" },
-  { value: "US", label: "United States" },
-  { value: "Japan", label: "Japan" },
-  { value: "UK", label: "United Kingdom" },
-  { value: "China", label: "China" },
-  { value: "Korea", label: "Korea" },
-  { value: "Other", label: "Other" },
+  { value: "IN", label: "🇮🇳 India" },
+  { value: "Dubai", label: "🇦🇪 Dubai" },
+  { value: "US", label: "🇺🇸 United States" },
+  { value: "Japan", label: "🇯🇵 Japan" },
+  { value: "UK", label: "🇬🇧 United Kingdom" },
+  { value: "China", label: "🇨🇳 China" },
+  { value: "Korea", label: "🇰🇷 Korea" },
+  { value: "Other", label: "🌍 Other" },
 ];
 
 // Storage options
@@ -66,6 +74,9 @@ const STORAGE_OPTIONS = ["32GB", "64GB", "128GB", "256GB", "512GB", "1TB"];
 const BRAND_SUGGESTIONS = ["Apple", "Samsung", "OnePlus", "Xiaomi", "Realme", "Vivo", "Oppo", "Motorola", "Google", "Nothing"];
 
 export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormProps) {
+  const [isCheckingIMEI, setIsCheckingIMEI] = useState(false);
+  const [imeiStatus, setImeiStatus] = useState<'valid' | 'duplicate' | 'checking' | null>(null);
+
   const form = useForm<StockFormValues>({
     resolver: zodResolver(stockSchema),
     defaultValues: {
@@ -85,6 +96,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
   // Watch prices for profit calculation
   const purchasePrice = form.watch("purchase_price");
   const sellingPrice = form.watch("selling_price");
+  const imeiValue = form.watch("imei");
 
   // Auto-calculate profit
   const profit = useMemo(() => {
@@ -98,6 +110,42 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
     if (purchase === 0) return 0;
     return ((profit / purchase) * 100).toFixed(1);
   }, [profit, purchasePrice]);
+
+  // Check for duplicate IMEI
+  const checkDuplicateIMEI = async (imei: string) => {
+    if (!imei || imei.length !== 15) {
+      setImeiStatus(null);
+      return;
+    }
+
+    setIsCheckingIMEI(true);
+    setImeiStatus('checking');
+
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, brand, model')
+        .eq('imei', imei)
+        .neq('id', product?.id || '00000000-0000-0000-0000-000000000000')
+        .limit(1);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setImeiStatus('duplicate');
+        form.setError('imei', { 
+          message: `This IMEI already exists for ${data[0].brand} ${data[0].model}` 
+        });
+      } else {
+        setImeiStatus('valid');
+        form.clearErrors('imei');
+      }
+    } catch (error) {
+      console.error('Error checking IMEI:', error);
+    } finally {
+      setIsCheckingIMEI(false);
+    }
+  };
 
   // Reset form function
   const handleReset = () => {
@@ -113,13 +161,34 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
       customer_name: "",
       notes: "",
     });
+    setImeiStatus(null);
+  };
+
+  // Custom submit handler with duplicate check
+  const handleFormSubmit = async (values: StockFormValues) => {
+    // Check IMEI duplicate before submitting
+    if (values.imei && values.imei.length === 15) {
+      const { data } = await supabase
+        .from('products')
+        .select('id')
+        .eq('imei', values.imei)
+        .neq('id', product?.id || '00000000-0000-0000-0000-000000000000')
+        .limit(1);
+
+      if (data && data.length > 0) {
+        toast.error("This IMEI already exists in the system!");
+        return;
+      }
+    }
+
+    onSubmit(values);
   };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
         {/* Brand and Model Row */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="brand"
@@ -130,6 +199,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
                   <Input 
                     placeholder="e.g., Apple, Samsung" 
                     list="brand-suggestions"
+                    className="h-11"
                     {...field} 
                   />
                 </FormControl>
@@ -150,7 +220,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
               <FormItem>
                 <FormLabel>Model Name *</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., iPhone 15 Pro" {...field} />
+                  <Input placeholder="e.g., iPhone 15 Pro" className="h-11" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -159,7 +229,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
         </div>
 
         {/* Color and Storage Row */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="color"
@@ -167,7 +237,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
               <FormItem>
                 <FormLabel>Color</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., Black, Blue, Gold" {...field} />
+                  <Input placeholder="e.g., Black, Blue, Gold" className="h-11" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -182,7 +252,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
                 <FormLabel>Storage (GB)</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11">
                       <SelectValue placeholder="Select storage" />
                     </SelectTrigger>
                   </FormControl>
@@ -199,7 +269,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
         </div>
 
         {/* Country and IMEI Row */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="country_variant"
@@ -208,7 +278,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
                 <FormLabel>Country Variant</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11">
                       <SelectValue placeholder="Select country" />
                     </SelectTrigger>
                   </FormControl>
@@ -230,10 +300,38 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
             name="imei"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>IMEI / Serial Number</FormLabel>
+                <FormLabel className="flex items-center gap-2">
+                  IMEI / Serial Number
+                  {imeiStatus === 'checking' && (
+                    <span className="text-xs text-muted-foreground animate-pulse">Checking...</span>
+                  )}
+                  {imeiStatus === 'valid' && (
+                    <CheckCircle className="h-4 w-4 text-success" />
+                  )}
+                  {imeiStatus === 'duplicate' && (
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                  )}
+                </FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter IMEI or serial" {...field} />
+                  <Input 
+                    placeholder="15 digit IMEI" 
+                    maxLength={15}
+                    className="h-11 font-mono"
+                    {...field} 
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 15);
+                      field.onChange(value);
+                      if (value.length === 15) {
+                        checkDuplicateIMEI(value);
+                      } else {
+                        setImeiStatus(null);
+                      }
+                    }}
+                  />
                 </FormControl>
+                <p className="text-xs text-muted-foreground">
+                  {imeiValue?.length || 0}/15 digits
+                </p>
                 <FormMessage />
               </FormItem>
             )}
@@ -241,7 +339,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
         </div>
 
         {/* Price Row with Profit Display */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="purchase_price"
@@ -249,7 +347,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
               <FormItem>
                 <FormLabel>Purchase Price (₹) *</FormLabel>
                 <FormControl>
-                  <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                  <Input type="number" step="1" placeholder="0" className="h-11" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -263,7 +361,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
               <FormItem>
                 <FormLabel>Selling Price (₹) *</FormLabel>
                 <FormControl>
-                  <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                  <Input type="number" step="1" placeholder="0" className="h-11" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -272,17 +370,25 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
         </div>
 
         {/* Auto-calculated Profit Display */}
-        <div className="p-4 rounded-lg bg-muted/50 border border-border">
+        <div className={`p-4 rounded-lg border transition-colors ${
+          profit >= 0 
+            ? 'bg-success/10 border-success/20' 
+            : 'bg-destructive/10 border-destructive/20'
+        }`}>
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
             <Calculator className="h-4 w-4" />
             Auto-Calculated Profit
           </div>
           <div className="flex items-center justify-between">
             <span className={`text-2xl font-bold ${profit >= 0 ? 'text-success' : 'text-destructive'}`}>
-              ₹{profit.toLocaleString()}
+              ₹{profit.toLocaleString('en-IN')}
             </span>
-            <span className={`text-sm font-medium ${profit >= 0 ? 'text-success' : 'text-destructive'}`}>
-              ({profitPercentage}%)
+            <span className={`text-sm font-medium px-2 py-1 rounded ${
+              profit >= 0 
+                ? 'bg-success/20 text-success' 
+                : 'bg-destructive/20 text-destructive'
+            }`}>
+              {profit >= 0 ? '+' : ''}{profitPercentage}%
             </span>
           </div>
         </div>
@@ -295,7 +401,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
             <FormItem>
               <FormLabel>Customer Name</FormLabel>
               <FormControl>
-                <Input placeholder="Enter customer name (optional)" {...field} />
+                <Input placeholder="Enter customer name (optional)" className="h-11" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -312,7 +418,7 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
               <FormControl>
                 <Textarea 
                   placeholder="Any additional notes about this stock item..."
-                  className="resize-none"
+                  className="resize-none min-h-[80px]"
                   rows={3}
                   {...field} 
                 />
@@ -323,22 +429,26 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
         />
 
         {/* Today's Date Display */}
-        <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
+        <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
           <p className="text-sm text-muted-foreground">
-            Entry Date: <span className="font-medium text-foreground">{format(new Date(), "PPP")}</span>
+            📅 Entry Date: <span className="font-medium text-foreground">{format(new Date(), "PPP")}</span>
           </p>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2 justify-end pt-4 border-t">
-          <Button type="button" variant="ghost" onClick={handleReset} className="gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 justify-end pt-4 border-t">
+          <Button type="button" variant="ghost" onClick={handleReset} className="gap-2 w-full sm:w-auto">
             <RotateCcw className="h-4 w-4" />
             Reset
           </Button>
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto">
             Cancel
           </Button>
-          <Button type="submit" disabled={isLoading}>
+          <Button 
+            type="submit" 
+            disabled={isLoading || imeiStatus === 'duplicate'}
+            className="w-full sm:w-auto"
+          >
             {isLoading ? "Saving..." : product ? "Update Stock" : "Add Stock"}
           </Button>
         </div>

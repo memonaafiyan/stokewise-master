@@ -119,6 +119,33 @@ export type Database = {
         }
         Relationships: []
       }
+      password_reset_otps: {
+        Row: {
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          otp_code: string
+          used: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          otp_code: string
+          used?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          otp_code?: string
+          used?: boolean | null
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -257,6 +284,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          phone: string | null
           updated_at: string
           user_id: string
         }
@@ -265,6 +293,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id: string
         }
@@ -273,6 +302,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -346,6 +376,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shop_settings: {
+        Row: {
+          created_at: string
+          gst_number: string | null
+          id: string
+          logo_url: string | null
+          shop_address: string | null
+          shop_email: string | null
+          shop_name: string | null
+          shop_phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          gst_number?: string | null
+          id?: string
+          logo_url?: string | null
+          shop_address?: string | null
+          shop_email?: string | null
+          shop_name?: string | null
+          shop_phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          gst_number?: string | null
+          id?: string
+          logo_url?: string | null
+          shop_address?: string | null
+          shop_email?: string | null
+          shop_name?: string | null
+          shop_phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
