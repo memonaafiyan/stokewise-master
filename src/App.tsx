@@ -8,13 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { Layout } from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
-import Products from "./pages/Products";
-import Vyapari from "./pages/Vyapari";
-import Sales from "./pages/Sales";
-import Payments from "./pages/Payments";
+import StockEntry from "./pages/StockEntry";
+import StockList from "./pages/StockList";
 import Reports from "./pages/Reports";
-import Reminders from "./pages/Reminders";
-import AuditLogs from "./pages/AuditLogs";
+import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -25,13 +22,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setLoading(false);
     });
 
-    // Then check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
@@ -61,13 +56,10 @@ const App = () => (
           <Route path="/" element={<Auth />} />
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/vyapari" element={<Vyapari />} />
-            <Route path="/sales" element={<Sales />} />
-            <Route path="/payments" element={<Payments />} />
+            <Route path="/stock-entry" element={<StockEntry />} />
+            <Route path="/stock-list" element={<StockList />} />
             <Route path="/reports" element={<Reports />} />
-            <Route path="/reminders" element={<Reminders />} />
-            <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
