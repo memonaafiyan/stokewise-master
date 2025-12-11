@@ -5,7 +5,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 
 export function TopBar() {
   const { theme, toggleTheme } = useTheme();
@@ -36,7 +35,6 @@ export function TopBar() {
       </div>
       
       <div className="flex items-center gap-2">
-        <NotificationCenter />
         <Button
           variant="ghost"
           size="icon"

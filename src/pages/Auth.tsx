@@ -16,14 +16,12 @@ export default function Auth() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         navigate("/dashboard");
       }
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
         navigate("/dashboard");
@@ -83,19 +81,6 @@ export default function Auth() {
           toast.error(error.message);
         }
       } else if (data.user) {
-        // Create profile
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .insert({
-            user_id: data.user.id,
-            email: email,
-            full_name: fullName,
-          });
-
-        if (profileError) {
-          console.error("Profile creation error:", profileError);
-        }
-
         toast.success("Account created successfully!");
       }
     } catch (error: any) {
@@ -114,10 +99,10 @@ export default function Auth() {
             <span className="text-primary-foreground font-bold text-2xl">SM</span>
           </div>
           <CardTitle className="text-2xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            StokeMaker
+            Stock Maker
           </CardTitle>
           <CardDescription>
-            Phonex Telecom Business Portal
+            Mobile Stock Management Portal
           </CardDescription>
         </CardHeader>
         <CardContent>
