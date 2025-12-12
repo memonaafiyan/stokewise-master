@@ -1,4 +1,4 @@
-import { Home, Package, Users, ShoppingCart, Wallet, BarChart3, Bell, LogOut, FileText } from "lucide-react";
+import { Home, PackagePlus, Package, BarChart3, LogOut, Settings } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -15,13 +15,10 @@ import {
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
-  { title: "Products", url: "/products", icon: Package },
-  { title: "Vyapari", url: "/vyapari", icon: Users },
-  { title: "Sales", url: "/sales", icon: ShoppingCart },
-  { title: "Payments", url: "/payments", icon: Wallet },
-  { title: "Reminders", url: "/reminders", icon: Bell },
+  { title: "Stock Entry", url: "/stock-entry", icon: PackagePlus },
+  { title: "Stock List", url: "/stock-list", icon: Package },
   { title: "Reports", url: "/reports", icon: BarChart3 },
-  { title: "Audit Logs", url: "/audit-logs", icon: FileText },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
