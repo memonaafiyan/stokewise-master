@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { KPICard } from "@/components/dashboard/KPICard";
+import { RiskyMerchantsWidget } from "@/components/dashboard/RiskyMerchantsWidget";
 import { useProducts } from "@/hooks/useProducts";
 import { StockForm } from "@/components/products/StockForm";
 import {
@@ -229,6 +230,9 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        {/* Risky Merchants Widget */}
+        <RiskyMerchantsWidget />
       </div>
 
       {/* Quick Actions */}
