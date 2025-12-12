@@ -88,9 +88,17 @@ export const useProducts = () => {
 
   const createProduct = useMutation({
     mutationFn: async (newProduct: ProductInsert) => {
+      // Ensure unit_price is set (required by database)
+      const productData = {
+        ...newProduct,
+        unit_price: newProduct.selling_price || newProduct.unit_price || 0,
+        name: newProduct.name || `${newProduct.brand || ''} ${newProduct.model || ''}`.trim() || 'Unknown Product',
+        quantity: 1,
+      };
+
       const { data, error } = await supabase
         .from("products")
-        .insert(newProduct as any)
+        .insert(productData as any)
         .select()
         .single();
 
