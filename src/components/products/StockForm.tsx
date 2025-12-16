@@ -41,7 +41,6 @@ const stockSchema = z.object({
     return imeiRegex.test(val);
   }, "IMEI must be exactly 15 digits"),
   purchase_price: z.coerce.number().min(0, "Purchase price must be positive"),
-  selling_price: z.coerce.number().min(0, "Selling price must be positive"),
   customer_name: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -87,29 +86,12 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
       country_variant: product?.country_variant || "IN",
       imei: product?.imei || "",
       purchase_price: product?.purchase_price || 0,
-      selling_price: product?.selling_price || 0,
       customer_name: product?.customer_name || "",
       notes: product?.notes || "",
     },
   });
 
-  // Watch prices for profit calculation
-  const purchasePrice = form.watch("purchase_price");
-  const sellingPrice = form.watch("selling_price");
   const imeiValue = form.watch("imei");
-
-  // Auto-calculate profit
-  const profit = useMemo(() => {
-    const purchase = Number(purchasePrice) || 0;
-    const selling = Number(sellingPrice) || 0;
-    return selling - purchase;
-  }, [purchasePrice, sellingPrice]);
-
-  const profitPercentage = useMemo(() => {
-    const purchase = Number(purchasePrice) || 0;
-    if (purchase === 0) return 0;
-    return ((profit / purchase) * 100).toFixed(1);
-  }, [profit, purchasePrice]);
 
   // Check for duplicate IMEI
   const checkDuplicateIMEI = async (imei: string) => {
@@ -157,7 +139,6 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
       country_variant: "IN",
       imei: "",
       purchase_price: 0,
-      selling_price: 0,
       customer_name: "",
       notes: "",
     });
