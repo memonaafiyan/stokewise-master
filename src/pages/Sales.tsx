@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -18,10 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { ShoppingCart, TrendingUp, DollarSign, Calendar, Search, Filter } from "lucide-react";
+import { ShoppingCart, TrendingUp, DollarSign, Calendar, Search, Filter, Plus } from "lucide-react";
 import { KPICard } from "@/components/dashboard/KPICard";
-import { format, isToday, isThisWeek, isThisMonth } from "date-fns";
+import { format, isToday, isThisWeek, isThisMonth, addDays } from "date-fns";
 import {
   AreaChart,
   Area,
@@ -31,6 +40,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { toast } from "sonner";
 
 interface Sale {
   id: string;
@@ -50,15 +60,45 @@ interface Sale {
   vyapari?: { name: string; contact: string };
 }
 
+interface Product {
+  id: string;
+  name: string | null;
+  brand: string | null;
+  model: string | null;
+  quantity: number;
+  purchase_price: number | null;
+}
+
+interface Vyapari {
+  id: string;
+  name: string;
+  contact: string;
+}
+
 export default function Sales() {
   const [sales, setSales] = useState<Sale[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [vyaparis, setVyaparis] = useState<Vyapari[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Sale form state
+  const [selectedProduct, setSelectedProduct] = useState("");
+  const [selectedVyapari, setSelectedVyapari] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [sellingPrice, setSellingPrice] = useState("");
+  const [paidAmount, setPaidAmount] = useState("");
+  const [dueDate, setDueDate] = useState(format(addDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     fetchSales();
+    fetchProducts();
+    fetchVyaparis();
 
     const channel = supabase
       .channel('sales-realtime')
@@ -91,6 +131,98 @@ export default function Sales() {
       setLoading(false);
     }
   };
+
+  const fetchProducts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, brand, model, quantity, purchase_price')
+        .gt('quantity', 0)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    }
+  };
+
+  const fetchVyaparis = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('vyapari')
+        .select('id, name, contact')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setVyaparis(data || []);
+    } catch (error) {
+      console.error('Error fetching vyaparis:', error);
+    }
+  };
+
+  const handleCreateSale = async () => {
+    if (!selectedProduct || !selectedVyapari || !sellingPrice) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+
+    const price = parseFloat(sellingPrice);
+    const paid = parseFloat(paidAmount) || 0;
+    const totalAmount = price * quantity;
+    const remainingAmount = totalAmount - paid;
+
+    if (paid > totalAmount) {
+      toast.error("Paid amount cannot exceed total amount");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { error } = await supabase.from('sales').insert({
+        product_id: selectedProduct,
+        vyapari_id: selectedVyapari,
+        quantity,
+        rate: price,
+        total_amount: totalAmount,
+        paid_amount: paid,
+        remaining_amount: remainingAmount,
+        payment_status: paid >= totalAmount ? 'paid' : paid > 0 ? 'partial' : 'pending',
+        due_date: dueDate,
+        notes: notes || null,
+        created_by: user.id,
+      });
+
+      if (error) throw error;
+
+      toast.success("Sale created successfully");
+      setDialogOpen(false);
+      resetForm();
+      fetchSales();
+      fetchProducts(); // Refresh products as stock may have changed
+    } catch (error: any) {
+      console.error('Error creating sale:', error);
+      toast.error(error.message || "Failed to create sale");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedProduct("");
+    setSelectedVyapari("");
+    setQuantity(1);
+    setSellingPrice("");
+    setPaidAmount("");
+    setDueDate(format(addDays(new Date(), 30), 'yyyy-MM-dd'));
+    setNotes("");
+  };
+
+  const selectedProductData = products.find(p => p.id === selectedProduct);
+  const totalAmount = parseFloat(sellingPrice || "0") * quantity;
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -164,12 +296,135 @@ export default function Sales() {
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 space-y-6 animate-fade-in">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          Sales Dashboard
-        </h1>
-        <p className="text-muted-foreground mt-1">Track and manage all your sales transactions.</p>
+      {/* Header with Add Sale Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            Sales Dashboard
+          </h1>
+          <p className="text-muted-foreground mt-1">Track and manage all your sales transactions.</p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Sale
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Create New Sale</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              {/* Select Product */}
+              <div className="space-y-2">
+                <Label>Product *</Label>
+                <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.map((product) => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.brand} {product.model || product.name} (Stock: {product.quantity})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedProductData && (
+                  <p className="text-sm text-muted-foreground">
+                    Purchase Price: ₹{selectedProductData.purchase_price?.toLocaleString() || 0}
+                  </p>
+                )}
+              </div>
+
+              {/* Select Vyapari */}
+              <div className="space-y-2">
+                <Label>Merchant (Vyapari) *</Label>
+                <Select value={selectedVyapari} onValueChange={setSelectedVyapari}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a merchant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vyaparis.map((vyapari) => (
+                      <SelectItem key={vyapari.id} value={vyapari.id}>
+                        {vyapari.name} ({vyapari.contact})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Quantity */}
+              <div className="space-y-2">
+                <Label>Quantity</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={selectedProductData?.quantity || 1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                />
+              </div>
+
+              {/* Selling Price */}
+              <div className="space-y-2">
+                <Label>Selling Price (per unit) *</Label>
+                <Input
+                  type="number"
+                  placeholder="Enter selling price"
+                  value={sellingPrice}
+                  onChange={(e) => setSellingPrice(e.target.value)}
+                />
+                {totalAmount > 0 && (
+                  <p className="text-sm font-medium text-primary">
+                    Total: ₹{totalAmount.toLocaleString()}
+                  </p>
+                )}
+              </div>
+
+              {/* Paid Amount */}
+              <div className="space-y-2">
+                <Label>Paid Amount (optional)</Label>
+                <Input
+                  type="number"
+                  placeholder="Amount paid now"
+                  value={paidAmount}
+                  onChange={(e) => setPaidAmount(e.target.value)}
+                />
+              </div>
+
+              {/* Due Date */}
+              <div className="space-y-2">
+                <Label>Due Date</Label>
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  placeholder="Add any notes..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+
+              {/* Submit Button */}
+              <Button 
+                onClick={handleCreateSale} 
+                disabled={submitting || !selectedProduct || !selectedVyapari || !sellingPrice}
+                className="w-full"
+              >
+                {submitting ? "Creating..." : "Create Sale"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* KPI Cards */}
