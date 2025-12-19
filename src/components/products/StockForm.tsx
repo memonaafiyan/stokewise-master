@@ -335,43 +335,6 @@ export function StockForm({ product, onSubmit, onCancel, isLoading }: StockFormP
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="selling_price"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Selling Price (₹) *</FormLabel>
-                <FormControl>
-                  <Input type="number" step="1" placeholder="0" className="h-11" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {/* Auto-calculated Profit Display */}
-        <div className={`p-4 rounded-lg border transition-colors ${
-          profit >= 0 
-            ? 'bg-success/10 border-success/20' 
-            : 'bg-destructive/10 border-destructive/20'
-        }`}>
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
-            <Calculator className="h-4 w-4" />
-            Auto-Calculated Profit
-          </div>
-          <div className="flex items-center justify-between">
-            <span className={`text-2xl font-bold ${profit >= 0 ? 'text-success' : 'text-destructive'}`}>
-              ₹{profit.toLocaleString('en-IN')}
-            </span>
-            <span className={`text-sm font-medium px-2 py-1 rounded ${
-              profit >= 0 
-                ? 'bg-success/20 text-success' 
-                : 'bg-destructive/20 text-destructive'
-            }`}>
-              {profit >= 0 ? '+' : ''}{profitPercentage}%
-            </span>
-          </div>
         </div>
 
         {/* Customer Name */}
