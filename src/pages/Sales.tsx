@@ -311,16 +311,16 @@ export default function Sales() {
               New Sale
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Sale</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 pt-4">
+            <div className="grid gap-4 pt-4">
               {/* Select Product */}
               <div className="space-y-2">
                 <Label>Product *</Label>
                 <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a product" />
                   </SelectTrigger>
                   <SelectContent>
@@ -342,7 +342,7 @@ export default function Sales() {
               <div className="space-y-2">
                 <Label>Merchant (Vyapari) *</Label>
                 <Select value={selectedVyapari} onValueChange={setSelectedVyapari}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a merchant" />
                   </SelectTrigger>
                   <SelectContent>
@@ -355,53 +355,54 @@ export default function Sales() {
                 </Select>
               </div>
 
-              {/* Quantity */}
-              <div className="space-y-2">
-                <Label>Quantity</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={selectedProductData?.quantity || 1}
-                  value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                />
+              {/* Quantity & Selling Price - 2 column on larger screens */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Quantity</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={selectedProductData?.quantity || 1}
+                    value={quantity}
+                    onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Selling Price (per unit) *</Label>
+                  <Input
+                    type="number"
+                    placeholder="Enter price"
+                    value={sellingPrice}
+                    onChange={(e) => setSellingPrice(e.target.value)}
+                  />
+                </div>
               </div>
 
-              {/* Selling Price */}
-              <div className="space-y-2">
-                <Label>Selling Price (per unit) *</Label>
-                <Input
-                  type="number"
-                  placeholder="Enter selling price"
-                  value={sellingPrice}
-                  onChange={(e) => setSellingPrice(e.target.value)}
-                />
-                {totalAmount > 0 && (
-                  <p className="text-sm font-medium text-primary">
-                    Total: ₹{totalAmount.toLocaleString()}
-                  </p>
-                )}
-              </div>
+              {totalAmount > 0 && (
+                <p className="text-sm font-medium text-primary">
+                  Total: ₹{totalAmount.toLocaleString()}
+                </p>
+              )}
 
-              {/* Paid Amount */}
-              <div className="space-y-2">
-                <Label>Paid Amount (optional)</Label>
-                <Input
-                  type="number"
-                  placeholder="Amount paid now"
-                  value={paidAmount}
-                  onChange={(e) => setPaidAmount(e.target.value)}
-                />
-              </div>
-
-              {/* Due Date */}
-              <div className="space-y-2">
-                <Label>Due Date</Label>
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                />
+              {/* Paid Amount & Due Date - 2 column on larger screens */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Paid Amount</Label>
+                  <Input
+                    type="number"
+                    placeholder="Amount paid now"
+                    value={paidAmount}
+                    onChange={(e) => setPaidAmount(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Due Date</Label>
+                  <Input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                  />
+                </div>
               </div>
 
               {/* Notes */}
@@ -411,6 +412,7 @@ export default function Sales() {
                   placeholder="Add any notes..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
+                  className="min-h-[80px]"
                 />
               </div>
 
