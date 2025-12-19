@@ -28,10 +28,13 @@ import {
   RefreshCw,
   Search,
   Filter,
+  Edit,
+  IndianRupee,
+  Calendar,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInDays, isToday } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -40,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Sale {
   id: string;
@@ -72,8 +76,16 @@ export default function Payments() {
   const [isSendingReminders, setIsSendingReminders] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
+  const [dateFilter, setDateFilter] = useState("all");
+  
+  // Edit dialogs
+  const [editDueDateDialog, setEditDueDateDialog] = useState(false);
+  const [recordPaymentDialog, setRecordPaymentDialog] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [newDueDate, setNewDueDate] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     loadSales();
@@ -186,6 +198,83 @@ Thank you!
     }
   };
 
+  const handleEditDueDate = (sale: Sale) => {
+    setSelectedSale(sale);
+    setNewDueDate(sale.due_date);
+    setEditDueDateDialog(true);
+  };
+
+  const handleRecordPayment = (sale: Sale) => {
+    setSelectedSale(sale);
+    setPaymentAmount("");
+    setPaymentNotes("");
+    setRecordPaymentDialog(true);
+  };
+
+  const updateDueDate = async () => {
+    if (!selectedSale || !newDueDate) return;
+    
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from("sales")
+        .update({ due_date: newDueDate })
+        .eq("id", selectedSale.id);
+
+      if (error) throw error;
+      
+      toast.success("Due date updated successfully");
+      setEditDueDateDialog(false);
+      loadSales();
+    } catch (error: any) {
+      console.error("Failed to update due date:", error);
+      toast.error("Failed to update due date");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const recordPayment = async () => {
+    if (!selectedSale || !paymentAmount) return;
+    
+    const amount = parseFloat(paymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+    
+    if (amount > Number(selectedSale.remaining_amount)) {
+      toast.error("Payment amount cannot exceed remaining amount");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Not authenticated");
+
+      // Insert payment record
+      const { error: paymentError } = await supabase.from("payments").insert({
+        sale_id: selectedSale.id,
+        vyapari_id: selectedSale.vyapari_id,
+        amount: amount,
+        notes: paymentNotes || null,
+        created_by: userData.user.id,
+      });
+
+      if (paymentError) throw paymentError;
+      
+      toast.success("Payment recorded successfully");
+      setRecordPaymentDialog(false);
+      loadSales();
+    } catch (error: any) {
+      console.error("Failed to record payment:", error);
+      toast.error("Failed to record payment: " + error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getStatusBadge = (status: string, dueDate: string) => {
     const isOverdue = new Date(dueDate) < new Date() && status !== "paid";
     
@@ -229,14 +318,21 @@ Thank you!
       sale.payment_status === statusFilter ||
       (statusFilter === "overdue" && new Date(sale.due_date) < new Date() && sale.payment_status !== "paid");
 
-    return matchesSearch && matchesStatus;
+    const matchesDate = 
+      dateFilter === "all" ||
+      (dateFilter === "today" && isToday(new Date(sale.sale_date)));
+
+    return matchesSearch && matchesStatus && matchesDate;
   });
+
+  const todayEntries = sales.filter(s => isToday(new Date(s.sale_date)));
 
   const stats = {
     total: sales.length,
     pending: sales.filter((s) => s.payment_status === "pending" || s.payment_status === "partial").length,
     overdue: sales.filter((s) => new Date(s.due_date) < new Date() && s.payment_status !== "paid").length,
     totalDue: sales.reduce((sum, s) => sum + Number(s.remaining_amount), 0),
+    todayEntries: todayEntries.length,
   };
 
   return (
@@ -262,7 +358,7 @@ Thank you!
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{stats.total}</div>
@@ -287,6 +383,12 @@ Thank you!
               ₹{stats.totalDue.toLocaleString("en-IN")}
             </div>
             <p className="text-xs text-muted-foreground">Total Due Amount</p>
+          </CardContent>
+        </Card>
+        <Card className="border-primary/20">
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-primary">{stats.todayEntries}</div>
+            <p className="text-xs text-muted-foreground">Today's Entries</p>
           </CardContent>
         </Card>
       </div>
@@ -317,6 +419,16 @@ Thank you!
                 <SelectItem value="paid">Paid</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <Calendar className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Filter by date" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Dates</SelectItem>
+                <SelectItem value="today">Today's Entries</SelectItem>
+              </SelectContent>
+            </Select>
             <Button variant="outline" onClick={loadSales}>
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -342,11 +454,11 @@ Thank you!
                 <TableHeader>
                   <TableRow>
                     <TableHead>Merchant</TableHead>
-                    <TableHead>Product</TableHead>
+                    <TableHead className="hidden sm:table-cell">Product</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="text-right">Paid</TableHead>
+                    <TableHead className="text-right hidden md:table-cell">Paid</TableHead>
                     <TableHead className="text-right">Due</TableHead>
-                    <TableHead>Due Date</TableHead>
+                    <TableHead className="hidden lg:table-cell">Due Date</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -365,25 +477,43 @@ Thank you!
                           <div className="font-medium">{sale.vyapari?.name || "Unknown"}</div>
                           <div className="text-xs text-muted-foreground">{sale.vyapari?.contact}</div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           {sale.products?.brand} {sale.products?.model}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           ₹{Number(sale.total_amount).toLocaleString("en-IN")}
                         </TableCell>
-                        <TableCell className="text-right text-success">
+                        <TableCell className="text-right text-success hidden md:table-cell">
                           ₹{Number(sale.paid_amount).toLocaleString("en-IN")}
                         </TableCell>
                         <TableCell className="text-right text-destructive font-medium">
                           ₹{Number(sale.remaining_amount).toLocaleString("en-IN")}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden lg:table-cell">
                           <div>{format(new Date(sale.due_date), "dd MMM yyyy")}</div>
                           {getDaysIndicator(sale.due_date, sale.payment_status)}
                         </TableCell>
                         <TableCell>{getStatusBadge(sale.payment_status, sale.due_date)}</TableCell>
                         <TableCell>
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-1 flex-wrap">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRecordPayment(sale)}
+                              disabled={sale.payment_status === "paid"}
+                              title="Record Payment"
+                            >
+                              <IndianRupee className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEditDueDate(sale)}
+                              disabled={sale.payment_status === "paid"}
+                              title="Edit Due Date"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -413,6 +543,100 @@ Thank you!
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Due Date Dialog */}
+      <Dialog open={editDueDateDialog} onOpenChange={setEditDueDateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Due Date</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Merchant</Label>
+              <p className="text-sm text-muted-foreground">{selectedSale?.vyapari?.name}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Remaining Amount</Label>
+              <p className="text-lg font-bold text-destructive">
+                ₹{Number(selectedSale?.remaining_amount || 0).toLocaleString("en-IN")}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dueDate">New Due Date</Label>
+              <Input
+                id="dueDate"
+                type="date"
+                value={newDueDate}
+                onChange={(e) => setNewDueDate(e.target.value)}
+              />
+            </div>
+            <Button 
+              onClick={updateDueDate} 
+              className="w-full"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Updating..." : "Update Due Date"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record Payment Dialog */}
+      <Dialog open={recordPaymentDialog} onOpenChange={setRecordPaymentDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Merchant</Label>
+              <p className="text-sm text-muted-foreground">{selectedSale?.vyapari?.name}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Total Amount</Label>
+                <p className="text-sm font-medium">
+                  ₹{Number(selectedSale?.total_amount || 0).toLocaleString("en-IN")}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Remaining</Label>
+                <p className="text-lg font-bold text-destructive">
+                  ₹{Number(selectedSale?.remaining_amount || 0).toLocaleString("en-IN")}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paymentAmount">Payment Amount (₹)</Label>
+              <Input
+                id="paymentAmount"
+                type="number"
+                min="1"
+                max={selectedSale?.remaining_amount || 0}
+                placeholder="Enter amount"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paymentNotes">Notes (Optional)</Label>
+              <Textarea
+                id="paymentNotes"
+                placeholder="Payment notes..."
+                value={paymentNotes}
+                onChange={(e) => setPaymentNotes(e.target.value)}
+              />
+            </div>
+            <Button 
+              onClick={recordPayment} 
+              className="w-full"
+              disabled={isSubmitting || !paymentAmount}
+            >
+              {isSubmitting ? "Recording..." : "Record Payment"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
