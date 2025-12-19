@@ -14,6 +14,7 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Payments from "./pages/Payments";
 import Sales from "./pages/Sales";
+import Merchants from "./pages/Merchants";
 import Alerts from "./pages/Alerts";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -62,6 +63,7 @@ const App = () => (
             <Route path="/stock-entry" element={<StockEntry />} />
             <Route path="/stock-list" element={<StockList />} />
             <Route path="/sales" element={<Sales />} />
+            <Route path="/merchants" element={<Merchants />} />
             <Route path="/payments" element={<Payments />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/reports" element={<Reports />} />
