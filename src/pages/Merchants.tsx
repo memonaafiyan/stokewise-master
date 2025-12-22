@@ -16,18 +16,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Plus,
   Search,
   Edit,
+  Trash2,
   Users,
   RefreshCw,
   Phone,
   Mail,
   MapPin,
+  ChevronDown,
+  ChevronUp,
+  History,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -44,6 +57,11 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface Merchant {
   id: string;
@@ -57,6 +75,23 @@ interface Merchant {
   credit_score: number;
   last_transaction_date: string | null;
   created_at: string;
+}
+
+interface Transaction {
+  id: string;
+  product_id: string;
+  quantity: number;
+  rate: number;
+  total_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  due_date: string;
+  payment_status: string;
+  sale_date: string;
+  products?: {
+    brand: string | null;
+    model: string | null;
+  };
 }
 
 const merchantSchema = z.object({
@@ -75,6 +110,12 @@ export default function Merchants() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMerchant, setEditingMerchant] = useState<Merchant | null>(null);
   const [userId, setUserId] = useState<string>("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [merchantToDelete, setMerchantToDelete] = useState<Merchant | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [expandedMerchant, setExpandedMerchant] = useState<string | null>(null);
+  const [transactions, setTransactions] = useState<Record<string, Transaction[]>>({});
+  const [loadingTransactions, setLoadingTransactions] = useState<string | null>(null);
 
   const form = useForm<MerchantFormValues>({
     resolver: zodResolver(merchantSchema),
@@ -113,6 +154,39 @@ export default function Merchants() {
     }
   };
 
+  const loadTransactions = async (merchantId: string) => {
+    if (transactions[merchantId]) {
+      // Already loaded
+      return;
+    }
+
+    setLoadingTransactions(merchantId);
+    try {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("*, products(brand, model)")
+        .eq("vyapari_id", merchantId)
+        .order("sale_date", { ascending: false });
+
+      if (error) throw error;
+      setTransactions(prev => ({ ...prev, [merchantId]: data || [] }));
+    } catch (error) {
+      console.error("Failed to load transactions:", error);
+      toast.error("Failed to load transaction history");
+    } finally {
+      setLoadingTransactions(null);
+    }
+  };
+
+  const toggleExpanded = async (merchantId: string) => {
+    if (expandedMerchant === merchantId) {
+      setExpandedMerchant(null);
+    } else {
+      setExpandedMerchant(merchantId);
+      await loadTransactions(merchantId);
+    }
+  };
+
   const openAddDialog = () => {
     setEditingMerchant(null);
     form.reset({ name: "", contact: "", email: "", address: "" });
@@ -128,6 +202,38 @@ export default function Merchants() {
       address: merchant.address || "",
     });
     setIsDialogOpen(true);
+  };
+
+  const openDeleteDialog = (merchant: Merchant) => {
+    setMerchantToDelete(merchant);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!merchantToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("vyapari")
+        .delete()
+        .eq("id", merchantToDelete.id);
+
+      if (error) throw error;
+      toast.success("Merchant deleted successfully");
+      setDeleteDialogOpen(false);
+      setMerchantToDelete(null);
+      loadMerchants();
+    } catch (error: any) {
+      console.error("Failed to delete merchant:", error);
+      if (error.message?.includes("violates foreign key")) {
+        toast.error("Cannot delete merchant with existing sales. Please delete sales first.");
+      } else {
+        toast.error("Failed to delete merchant: " + error.message);
+      }
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleSubmit = async (values: MerchantFormValues) => {
@@ -173,6 +279,19 @@ export default function Merchants() {
       return <Badge variant="secondary" className="bg-amber-500 text-white">Good ({score})</Badge>;
     }
     return <Badge variant="destructive">Poor ({score})</Badge>;
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "paid":
+        return <Badge className="bg-emerald-500 text-white">Paid</Badge>;
+      case "partial":
+        return <Badge className="bg-amber-500 text-white">Partial</Badge>;
+      case "overdue":
+        return <Badge variant="destructive">Overdue</Badge>;
+      default:
+        return <Badge variant="secondary">Pending</Badge>;
+    }
   };
 
   const filteredMerchants = merchants.filter((merchant) =>
@@ -271,74 +390,167 @@ export default function Merchants() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[40px]"></TableHead>
                     <TableHead>Merchant</TableHead>
                     <TableHead>Contact</TableHead>
-                    <TableHead className="text-right">Total Purchased</TableHead>
-                    <TableHead className="text-right">Total Paid</TableHead>
+                    <TableHead className="text-right hidden md:table-cell">Total Purchased</TableHead>
+                    <TableHead className="text-right hidden lg:table-cell">Total Paid</TableHead>
                     <TableHead className="text-right">Balance</TableHead>
-                    <TableHead>Credit Score</TableHead>
-                    <TableHead>Last Transaction</TableHead>
+                    <TableHead className="hidden lg:table-cell">Credit Score</TableHead>
+                    <TableHead className="hidden xl:table-cell">Last Transaction</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredMerchants.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         No merchants found
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredMerchants.map((merchant) => (
-                      <TableRow key={merchant.id}>
-                        <TableCell>
-                          <div className="font-medium">{merchant.name}</div>
-                          {merchant.address && (
-                            <div className="text-xs text-muted-foreground flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              {merchant.address}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Phone className="h-3 w-3" />
-                            {merchant.contact}
-                          </div>
-                          {merchant.email && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Mail className="h-3 w-3" />
-                              {merchant.email}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          ₹{Number(merchant.total_purchased).toLocaleString("en-IN")}
-                        </TableCell>
-                        <TableCell className="text-right text-success">
-                          ₹{Number(merchant.total_paid).toLocaleString("en-IN")}
-                        </TableCell>
-                        <TableCell className="text-right text-destructive font-medium">
-                          ₹{Number(merchant.remaining_balance).toLocaleString("en-IN")}
-                        </TableCell>
-                        <TableCell>{getCreditScoreBadge(merchant.credit_score)}</TableCell>
-                        <TableCell>
-                          {merchant.last_transaction_date
-                            ? format(new Date(merchant.last_transaction_date), "dd MMM yyyy")
-                            : "-"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-end">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openEditDialog(merchant)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                      <Collapsible
+                        key={merchant.id}
+                        open={expandedMerchant === merchant.id}
+                        onOpenChange={() => toggleExpanded(merchant.id)}
+                        asChild
+                      >
+                        <>
+                          <TableRow className="group">
+                            <TableCell>
+                              <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="sm" className="p-1">
+                                  {expandedMerchant === merchant.id ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </CollapsibleTrigger>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium">{merchant.name}</div>
+                              {merchant.address && (
+                                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {merchant.address}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1 text-sm">
+                                <Phone className="h-3 w-3" />
+                                {merchant.contact}
+                              </div>
+                              {merchant.email && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Mail className="h-3 w-3" />
+                                  {merchant.email}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-medium hidden md:table-cell">
+                              ₹{Number(merchant.total_purchased).toLocaleString("en-IN")}
+                            </TableCell>
+                            <TableCell className="text-right text-success hidden lg:table-cell">
+                              ₹{Number(merchant.total_paid).toLocaleString("en-IN")}
+                            </TableCell>
+                            <TableCell className="text-right text-destructive font-medium">
+                              ₹{Number(merchant.remaining_balance).toLocaleString("en-IN")}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">{getCreditScoreBadge(merchant.credit_score)}</TableCell>
+                            <TableCell className="hidden xl:table-cell">
+                              {merchant.last_transaction_date
+                                ? format(new Date(merchant.last_transaction_date), "dd MMM yyyy")
+                                : "-"}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openEditDialog(merchant)}
+                                  title="Edit"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => openDeleteDialog(merchant)}
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          <CollapsibleContent asChild>
+                            <TableRow className="bg-muted/30">
+                              <TableCell colSpan={9} className="p-4">
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-2 text-sm font-medium">
+                                    <History className="h-4 w-4" />
+                                    Transaction History
+                                  </div>
+                                  {loadingTransactions === merchant.id ? (
+                                    <div className="space-y-2">
+                                      {[1, 2, 3].map((i) => (
+                                        <Skeleton key={i} className="h-10 w-full" />
+                                      ))}
+                                    </div>
+                                  ) : transactions[merchant.id]?.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground">No transactions found</p>
+                                  ) : (
+                                    <div className="overflow-x-auto">
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>Product</TableHead>
+                                            <TableHead className="text-right">Amount</TableHead>
+                                            <TableHead className="text-right">Paid</TableHead>
+                                            <TableHead className="text-right">Due</TableHead>
+                                            <TableHead>Due Date</TableHead>
+                                            <TableHead>Status</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {transactions[merchant.id]?.map((txn) => (
+                                            <TableRow key={txn.id}>
+                                              <TableCell className="text-sm">
+                                                {format(new Date(txn.sale_date), "dd MMM yyyy")}
+                                              </TableCell>
+                                              <TableCell className="text-sm">
+                                                {txn.products?.brand} {txn.products?.model}
+                                              </TableCell>
+                                              <TableCell className="text-right text-sm">
+                                                ₹{Number(txn.total_amount).toLocaleString("en-IN")}
+                                              </TableCell>
+                                              <TableCell className="text-right text-sm text-success">
+                                                ₹{Number(txn.paid_amount).toLocaleString("en-IN")}
+                                              </TableCell>
+                                              <TableCell className="text-right text-sm text-destructive">
+                                                ₹{Number(txn.remaining_amount).toLocaleString("en-IN")}
+                                              </TableCell>
+                                              <TableCell className="text-sm">
+                                                {format(new Date(txn.due_date), "dd MMM yyyy")}
+                                              </TableCell>
+                                              <TableCell>{getStatusBadge(txn.payment_status)}</TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          </CollapsibleContent>
+                        </>
+                      </Collapsible>
                     ))
                   )}
                 </TableBody>
@@ -422,6 +634,29 @@ export default function Merchants() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Merchant?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{merchantToDelete?.name}</strong>? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
