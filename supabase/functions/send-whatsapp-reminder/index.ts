@@ -6,10 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface ReminderRequest {
-  type?: 'daily_check' | 'manual';
-}
-
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -24,6 +20,8 @@ serve(async (req: Request): Promise<Response> => {
     const today = new Date();
     const todayStr = today.toISOString().split("T")[0];
 
+    console.log(`[OVERDUE CHECK] Checking for overdue payments - Today: ${todayStr}`);
+
     // Find all sales with due date <= today and not paid
     const { data: overdueSales, error } = await supabase
       .from("sales")
@@ -33,6 +31,8 @@ serve(async (req: Request): Promise<Response> => {
       .gt("remaining_amount", 0);
 
     if (error) throw error;
+
+    console.log(`[OVERDUE CHECK] Found ${overdueSales?.length || 0} overdue/due today sales`);
 
     const remindersSent = [];
     const emailsSent = [];
@@ -54,7 +54,7 @@ serve(async (req: Request): Promise<Response> => {
         year: 'numeric'
       });
 
-      // Generate WhatsApp message
+      // Generate WhatsApp message automatically
       let whatsappMessage = "";
       if (isOverdue) {
         whatsappMessage = `🔔 *Payment Overdue Reminder*
@@ -88,10 +88,10 @@ Thank you!
 📞 7874455980`;
       }
 
-      // Create WhatsApp URL (for manual sending or integration)
+      // Create WhatsApp URL (stored for automated sending via business API if configured)
       if (customerPhone) {
         const cleanPhone = customerPhone.replace(/\D/g, '');
-        const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappMessage)}`;
+        const whatsappUrl = `https://wa.me/${cleanPhone.startsWith('91') ? cleanPhone : '91' + cleanPhone}?text=${encodeURIComponent(whatsappMessage)}`;
         
         remindersSent.push({
           customer: customerName,
@@ -101,9 +101,11 @@ Thank you!
           whatsapp_url: whatsappUrl,
           message: whatsappMessage
         });
+
+        console.log(`[OVERDUE CHECK] WhatsApp reminder generated for ${customerName} (${customerPhone}) - ${isOverdue ? `${daysOverdue} days overdue` : 'Due today'}`);
       }
 
-      // Send email reminder if email exists
+      // Send email reminder automatically (no user interaction needed)
       if (customerEmail && resendApiKey) {
         const emailHtml = `
           <!DOCTYPE html>
@@ -184,9 +186,11 @@ Thank you!
               reminder_type: isOverdue ? "overdue_email" : "due_today_email",
               email_sent_to: customerEmail,
             });
+
+            console.log(`[OVERDUE CHECK] Email sent to ${customerName} (${customerEmail}) - ${isOverdue ? 'Overdue' : 'Due today'}`);
           }
         } catch (emailError) {
-          console.error(`Failed to send email to ${customerEmail}:`, emailError);
+          console.error(`[OVERDUE CHECK] Failed to send email to ${customerEmail}:`, emailError);
         }
       }
 
@@ -196,10 +200,11 @@ Thank you!
           .from('sales')
           .update({ payment_status: 'overdue' })
           .eq('id', sale.id);
+        console.log(`[OVERDUE CHECK] Updated sale ${sale.id} status to overdue`);
       }
     }
 
-    console.log(`Reminders generated: ${remindersSent.length}, Emails sent: ${emailsSent.length}`);
+    console.log(`[OVERDUE CHECK] Reminders generated: ${remindersSent.length}, Emails sent: ${emailsSent.length}`);
 
     return new Response(
       JSON.stringify({
@@ -212,7 +217,7 @@ Thank you!
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error: any) {
-    console.error("Error in send-whatsapp-reminder:", error);
+    console.error("[OVERDUE CHECK] Error in send-whatsapp-reminder:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }

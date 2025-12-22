@@ -31,10 +31,11 @@ import {
   Edit,
   IndianRupee,
   Calendar,
+  History,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format, differenceInDays, isToday } from "date-fns";
+import { format, differenceInDays, isToday, parseISO, startOfDay, endOfDay } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -44,6 +45,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Sale {
   id: string;
@@ -70,13 +72,44 @@ interface Sale {
   };
 }
 
+interface Payment {
+  id: string;
+  sale_id: string;
+  vyapari_id: string;
+  amount: number;
+  payment_date: string;
+  payment_method: string | null;
+  notes: string | null;
+  created_at: string;
+  vyapari?: {
+    id: string;
+    name: string;
+    contact: string;
+  };
+  sales?: {
+    products?: {
+      brand: string | null;
+      model: string | null;
+    };
+  };
+}
+
 export default function Payments() {
   const [sales, setSales] = useState<Sale[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingPayments, setIsLoadingPayments] = useState(true);
   const [isSendingReminders, setIsSendingReminders] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState("sales");
+  
+  // Payment history filters
+  const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
+  const [paymentMerchantFilter, setPaymentMerchantFilter] = useState("all");
+  const [paymentDateFrom, setPaymentDateFrom] = useState("");
+  const [paymentDateTo, setPaymentDateTo] = useState("");
   
   // Edit dialogs
   const [editDueDateDialog, setEditDueDateDialog] = useState(false);
@@ -89,6 +122,7 @@ export default function Payments() {
 
   useEffect(() => {
     loadSales();
+    loadPayments();
   }, []);
 
   const loadSales = async () => {
@@ -110,6 +144,28 @@ export default function Payments() {
       toast.error("Failed to load payment data");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadPayments = async () => {
+    try {
+      setIsLoadingPayments(true);
+      const { data, error } = await supabase
+        .from("payments")
+        .select(`
+          *,
+          vyapari(id, name, contact),
+          sales(products(brand, model))
+        `)
+        .order("payment_date", { ascending: false });
+
+      if (error) throw error;
+      setPayments(data || []);
+    } catch (error) {
+      console.error("Failed to load payments:", error);
+      toast.error("Failed to load payment history");
+    } finally {
+      setIsLoadingPayments(false);
     }
   };
 
@@ -267,6 +323,7 @@ Thank you!
       toast.success("Payment recorded successfully");
       setRecordPaymentDialog(false);
       loadSales();
+      loadPayments();
     } catch (error: any) {
       console.error("Failed to record payment:", error);
       toast.error("Failed to record payment: " + error.message);
@@ -325,6 +382,32 @@ Thank you!
     return matchesSearch && matchesStatus && matchesDate;
   });
 
+  // Get unique merchants for filter dropdown
+  const uniqueMerchants = payments
+    .filter(p => p.vyapari?.id)
+    .map(p => p.vyapari!)
+    .filter((v, i, arr) => arr.findIndex(m => m.id === v.id) === i);
+
+  const filteredPayments = payments.filter((payment) => {
+    const matchesSearch =
+      payment.vyapari?.name?.toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
+      payment.sales?.products?.brand?.toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
+      payment.sales?.products?.model?.toLowerCase().includes(paymentSearchTerm.toLowerCase());
+
+    const matchesMerchant =
+      paymentMerchantFilter === "all" || payment.vyapari_id === paymentMerchantFilter;
+
+    let matchesDateRange = true;
+    if (paymentDateFrom) {
+      matchesDateRange = matchesDateRange && new Date(payment.payment_date) >= startOfDay(parseISO(paymentDateFrom));
+    }
+    if (paymentDateTo) {
+      matchesDateRange = matchesDateRange && new Date(payment.payment_date) <= endOfDay(parseISO(paymentDateTo));
+    }
+
+    return matchesSearch && matchesMerchant && matchesDateRange;
+  });
+
   const todayEntries = sales.filter(s => isToday(new Date(s.sale_date)));
 
   const stats = {
@@ -333,6 +416,8 @@ Thank you!
     overdue: sales.filter((s) => new Date(s.due_date) < new Date() && s.payment_status !== "paid").length,
     totalDue: sales.reduce((sum, s) => sum + Number(s.remaining_amount), 0),
     todayEntries: todayEntries.length,
+    totalPayments: payments.length,
+    totalReceived: payments.reduce((sum, p) => sum + Number(p.amount), 0),
   };
 
   return (
@@ -393,156 +478,310 @@ Thank you!
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by merchant or product..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <Calendar className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by date" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Dates</SelectItem>
-                <SelectItem value="today">Today's Entries</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" onClick={loadSales}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="sales" className="gap-2">
+            <IndianRupee className="h-4 w-4" />
+            Sales
+          </TabsTrigger>
+          <TabsTrigger value="history" className="gap-2">
+            <History className="h-4 w-4" />
+            Payment History
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Payments Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Payments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Merchant</TableHead>
-                    <TableHead className="hidden sm:table-cell">Product</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="text-right hidden md:table-cell">Paid</TableHead>
-                    <TableHead className="text-right">Due</TableHead>
-                    <TableHead className="hidden lg:table-cell">Due Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredSales.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        No payments found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredSales.map((sale) => (
-                      <TableRow key={sale.id}>
-                        <TableCell>
-                          <div className="font-medium">{sale.vyapari?.name || "Unknown"}</div>
-                          <div className="text-xs text-muted-foreground">{sale.vyapari?.contact}</div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          {sale.products?.brand} {sale.products?.model}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          ₹{Number(sale.total_amount).toLocaleString("en-IN")}
-                        </TableCell>
-                        <TableCell className="text-right text-success hidden md:table-cell">
-                          ₹{Number(sale.paid_amount).toLocaleString("en-IN")}
-                        </TableCell>
-                        <TableCell className="text-right text-destructive font-medium">
-                          ₹{Number(sale.remaining_amount).toLocaleString("en-IN")}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          <div>{format(new Date(sale.due_date), "dd MMM yyyy")}</div>
-                          {getDaysIndicator(sale.due_date, sale.payment_status)}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(sale.payment_status, sale.due_date)}</TableCell>
-                        <TableCell>
-                          <div className="flex justify-end gap-1 flex-wrap">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRecordPayment(sale)}
-                              disabled={sale.payment_status === "paid"}
-                              title="Record Payment"
-                            >
-                              <IndianRupee className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEditDueDate(sale)}
-                              disabled={sale.payment_status === "paid"}
-                              title="Edit Due Date"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openWhatsApp(sale)}
-                              disabled={!sale.vyapari?.contact || sale.payment_status === "paid"}
-                              title="Send WhatsApp"
-                            >
-                              <MessageCircle className="h-4 w-4 text-success" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => sendEmail(sale)}
-                              disabled={!sale.vyapari?.email || sale.payment_status === "paid"}
-                              title="Send Email"
-                            >
-                              <Mail className="h-4 w-4 text-primary" />
-                            </Button>
-                          </div>
-                        </TableCell>
+        {/* Sales Tab */}
+        <TabsContent value="sales" className="space-y-4">
+          {/* Filters */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by merchant or product..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full md:w-[180px]">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="partial">Partial</SelectItem>
+                    <SelectItem value="overdue">Overdue</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={dateFilter} onValueChange={setDateFilter}>
+                  <SelectTrigger className="w-full md:w-[180px]">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Filter by date" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Dates</SelectItem>
+                    <SelectItem value="today">Today's Entries</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" onClick={loadSales}>
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sales Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>All Sales</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Merchant</TableHead>
+                        <TableHead className="hidden sm:table-cell">Product</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="text-right hidden md:table-cell">Paid</TableHead>
+                        <TableHead className="text-right">Due</TableHead>
+                        <TableHead className="hidden lg:table-cell">Due Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredSales.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                            No payments found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredSales.map((sale) => (
+                          <TableRow key={sale.id}>
+                            <TableCell>
+                              <div className="font-medium">{sale.vyapari?.name || "Unknown"}</div>
+                              <div className="text-xs text-muted-foreground">{sale.vyapari?.contact}</div>
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              {sale.products?.brand} {sale.products?.model}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              ₹{Number(sale.total_amount).toLocaleString("en-IN")}
+                            </TableCell>
+                            <TableCell className="text-right text-success hidden md:table-cell">
+                              ₹{Number(sale.paid_amount).toLocaleString("en-IN")}
+                            </TableCell>
+                            <TableCell className="text-right text-destructive font-medium">
+                              ₹{Number(sale.remaining_amount).toLocaleString("en-IN")}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">
+                              <div>{format(new Date(sale.due_date), "dd MMM yyyy")}</div>
+                              {getDaysIndicator(sale.due_date, sale.payment_status)}
+                            </TableCell>
+                            <TableCell>{getStatusBadge(sale.payment_status, sale.due_date)}</TableCell>
+                            <TableCell>
+                              <div className="flex justify-end gap-1 flex-wrap">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRecordPayment(sale)}
+                                  disabled={sale.payment_status === "paid"}
+                                  title="Record Payment"
+                                >
+                                  <IndianRupee className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleEditDueDate(sale)}
+                                  disabled={sale.payment_status === "paid"}
+                                  title="Edit Due Date"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openWhatsApp(sale)}
+                                  disabled={!sale.vyapari?.contact || sale.payment_status === "paid"}
+                                  title="Send WhatsApp"
+                                >
+                                  <MessageCircle className="h-4 w-4 text-success" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => sendEmail(sale)}
+                                  disabled={!sale.vyapari?.email || sale.payment_status === "paid"}
+                                  title="Send Email"
+                                >
+                                  <Mail className="h-4 w-4 text-primary" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Payment History Tab */}
+        <TabsContent value="history" className="space-y-4">
+          {/* Payment History Stats */}
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-2">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold">{stats.totalPayments}</div>
+                <p className="text-xs text-muted-foreground">Total Payments Recorded</p>
+              </CardContent>
+            </Card>
+            <Card className="border-emerald-500/20">
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-emerald-600">
+                  ₹{stats.totalReceived.toLocaleString("en-IN")}
+                </div>
+                <p className="text-xs text-muted-foreground">Total Amount Received</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Filters */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
+                <div className="relative lg:col-span-2">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search payments..."
+                    value={paymentSearchTerm}
+                    onChange={(e) => setPaymentSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Select value={paymentMerchantFilter} onValueChange={setPaymentMerchantFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by merchant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Merchants</SelectItem>
+                    {uniqueMerchants.map((merchant) => (
+                      merchant && (
+                        <SelectItem key={merchant.id} value={merchant.id}>
+                          {merchant.name}
+                        </SelectItem>
+                      )
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div>
+                  <Input
+                    type="date"
+                    placeholder="From date"
+                    value={paymentDateFrom}
+                    onChange={(e) => setPaymentDateFrom(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    placeholder="To date"
+                    value={paymentDateTo}
+                    onChange={(e) => setPaymentDateTo(e.target.value)}
+                  />
+                  <Button variant="outline" onClick={loadPayments}>
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Payment History Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoadingPayments ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Merchant</TableHead>
+                        <TableHead className="hidden md:table-cell">Product</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="hidden lg:table-cell">Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredPayments.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                            No payment records found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredPayments.map((payment) => (
+                          <TableRow key={payment.id}>
+                            <TableCell>
+                              <div className="font-medium">
+                                {format(new Date(payment.payment_date), "dd MMM yyyy")}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {format(new Date(payment.payment_date), "hh:mm a")}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium">{payment.vyapari?.name || "Unknown"}</div>
+                              <div className="text-xs text-muted-foreground">{payment.vyapari?.contact}</div>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {payment.sales?.products?.brand} {payment.sales?.products?.model}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-emerald-600">
+                              ₹{Number(payment.amount).toLocaleString("en-IN")}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
+                              {payment.notes || "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Edit Due Date Dialog */}
       <Dialog open={editDueDateDialog} onOpenChange={setEditDueDateDialog}>
