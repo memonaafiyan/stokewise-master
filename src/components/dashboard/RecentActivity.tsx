@@ -2,8 +2,10 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Activity, Package, ShoppingCart, Clock } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { WidgetSkeleton } from "./WidgetSkeleton";
+import { EmptyState } from "./EmptyState";
 
 interface Product {
   id: string;
@@ -19,9 +21,10 @@ interface Product {
 
 interface RecentActivityProps {
   products: Product[];
+  isLoading?: boolean;
 }
 
-export function RecentActivity({ products }: RecentActivityProps) {
+export function RecentActivity({ products, isLoading }: RecentActivityProps) {
   const recentItems = useMemo(() => {
     const items: Array<{
       id: string;
@@ -56,6 +59,10 @@ export function RecentActivity({ products }: RecentActivityProps) {
       .slice(0, 8);
   }, [products]);
 
+  if (isLoading) {
+    return <WidgetSkeleton variant="list" />;
+  }
+
   if (recentItems.length === 0) {
     return (
       <Card className="overflow-hidden border-0 shadow-lg">
@@ -69,12 +76,12 @@ export function RecentActivity({ products }: RecentActivityProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="p-4 rounded-2xl bg-muted mb-3">
-              <Clock className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <p className="text-muted-foreground">No recent activity</p>
-          </div>
+          <EmptyState
+            icon={Clock}
+            title="No Activity Yet"
+            description="Your recent stock and sales activity will appear here"
+            variant="info"
+          />
         </CardContent>
       </Card>
     );
@@ -97,19 +104,20 @@ export function RecentActivity({ products }: RecentActivityProps) {
             <div
               key={item.id}
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl transition-colors hover:bg-muted/50",
+                "flex items-center gap-3 p-3 rounded-xl transition-all duration-300",
+                "hover:bg-muted/50 hover:shadow-sm hover:-translate-y-0.5",
                 "animate-fade-in"
               )}
               style={{ animationDelay: `${index * 50}ms` }}
             >
               <div className={cn(
-                "p-2 rounded-xl shrink-0",
+                "p-2 rounded-xl shrink-0 transition-transform duration-300",
                 item.type === "added" ? "bg-primary/10" : "bg-success/10"
               )}>
                 {item.type === "added" ? (
-                  <Package className={cn("h-4 w-4", "text-primary")} />
+                  <Package className="h-4 w-4 text-primary" />
                 ) : (
-                  <ShoppingCart className={cn("h-4 w-4", "text-success")} />
+                  <ShoppingCart className="h-4 w-4 text-success" />
                 )}
               </div>
               
