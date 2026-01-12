@@ -1,11 +1,11 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { LogOut, Bell } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Badge } from "@/components/ui/badge";
+import { NotificationDropdown } from "@/components/NotificationDropdown";
 import {
   Tooltip,
   TooltipContent,
@@ -46,17 +46,7 @@ export function TopBar() {
         {/* Notifications */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative rounded-xl h-10 w-10 hover:bg-muted group"
-            >
-              <Bell className="h-5 w-5 transition-transform group-hover:rotate-12" />
-              {/* Notification badge */}
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px] bg-destructive border-2 border-background">
-                3
-              </Badge>
-            </Button>
+            <NotificationDropdown />
           </TooltipTrigger>
           <TooltipContent>Notifications</TooltipContent>
         </Tooltip>
